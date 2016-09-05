@@ -1,0 +1,9 @@
+[package]
+name = "decachedmem"
+version = "0.1.0"
+authors = ["Sam Phippen <samphippen@googlemail.com>"]
+
+[dependencies]
+futures = { git = "https://github.com/alexcrichton/futures-rs" }
+tokio-core = { git = "https://github.com/tokio-rs/tokio-core" }
+env_logger = "0.3.4"
