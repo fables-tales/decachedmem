@@ -11,9 +11,11 @@ use tokio_core::{Loop};
 
 mod socket_stream;
 mod crlf_delimited_stream;
+mod memcached;
 
 use socket_stream::SocketStream;
 use crlf_delimited_stream::CarriageReturnLineFeedDelimitedStream;
+use memcached::stream::MemcachedProtcolStream;
 
 fn main() {
     env_logger::init().unwrap();
@@ -34,7 +36,8 @@ fn main() {
         socket.incoming().for_each(move |(socket, _addr)| {
             let stream = SocketStream::new(socket);
             let crlf = CarriageReturnLineFeedDelimitedStream::new(Box::new(stream));
-            let msg = crlf.for_each(|message| {
+            let memcached = MemcachedProtcolStream::new(Box::new(crlf));
+            let msg = memcached.for_each(|message| {
                 println!("{:?}", message);
                 Ok(())
             });

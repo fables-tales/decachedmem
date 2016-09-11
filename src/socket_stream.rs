@@ -26,7 +26,7 @@ impl Stream for SocketStream {
                 let mut buf = [0; 1];
                 let read_result = self.socket.read(&mut buf);
                 match read_result {
-                    Ok(0) => Ok(Async::NotReady),
+                    Ok(0) => Ok(Async::Ready(None)),
                     Ok(_) => Ok(Async::Ready(Some(buf[0]))),
                     Err(e) => Err(e),
                 }
