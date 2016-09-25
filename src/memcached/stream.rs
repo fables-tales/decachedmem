@@ -31,10 +31,9 @@ impl Stream for MemcachedProtcolStream {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
-            let poll = self.stream.poll();
+            let poll = try!(self.stream.poll());
             match poll {
-                Ok(Async::Ready(Some(x))) => {
-                    println!("{:?}", x);
+                Async::Ready(Some(x)) => {
                     let frame = try!(self.parser.add_bytes(&x).map_err(|e| other_io_error(e)));
 
                     match frame {
@@ -42,15 +41,9 @@ impl Stream for MemcachedProtcolStream {
                         None => {},
                     }
                 },
-                Ok(Async::Ready(None)) => {
-                    return Ok(Async::Ready(None))
-                },
-                Ok(Async::NotReady) => {
+                Async::NotReady | Async::Ready(None) => {
                     return Ok(Async::NotReady)
                 },
-                Err(e) => {
-                    return Err(e)
-                }
             };
         }
     }

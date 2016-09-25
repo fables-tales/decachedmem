@@ -1,5 +1,6 @@
 use std::{io, mem};
 use futures::stream::Stream;
+use std::str;
 use futures::{Poll, Async};
 
 pub type BoxedReadStream = Box<Stream<Item=u8, Error=io::Error>>;
@@ -31,6 +32,7 @@ impl Stream for CarriageReturnLineFeedDelimitedStream {
         }
         let mut result = Vec::new();
         mem::swap(&mut result, &mut self.build);
+        println!("{:?}", str::from_utf8(result.as_slice()).unwrap());
         Ok(Async::Ready(Some(Box::new(result))))
     }
 }

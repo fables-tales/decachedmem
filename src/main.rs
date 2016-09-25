@@ -1,53 +1,74 @@
+#[macro_use]
 extern crate tokio_core;
 extern crate futures;
 extern crate env_logger;
 
 use std::env;
 use std::net::SocketAddr;
+use std::io::{self, Write};
+use std::iter::repeat;
 
-use futures::Future;
-use futures::stream::Stream;
-use tokio_core::{Loop};
+use futures::{Future, AndThen};
+use futures::stream::{self, Stream, ForEach};
+use tokio_core::io::{write_all, WriteAll, WriteHalf, Io};
+use tokio_core::reactor::Core;
+use tokio_core::net::TcpListener;
 
 mod socket_stream;
 mod crlf_delimited_stream;
 mod memcached;
+mod copy_stream_to_write;
 
 use socket_stream::SocketStream;
 use crlf_delimited_stream::CarriageReturnLineFeedDelimitedStream;
 use memcached::stream::MemcachedProtcolStream;
+use memcached::handler_stream::MemcachedHandlerStream;
+use memcached::store::Store;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use copy_stream_to_write::CopyStreamToWrite;
 
 fn main() {
     env_logger::init().unwrap();
-    let addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
+    let addr = env::args().nth(1).unwrap_or("127.0.0.1:11211".to_string());
     let addr = addr.parse::<SocketAddr>().unwrap();
 
+
     // Create the event loop that will drive this server
-    let mut l = Loop::new().unwrap();
-    let pin = l.pin();
+    let mut l = Core::new().unwrap();
+    let pin = l.handle();
+    let store = Store::new();
 
     // Create a TCP listener which will listen for incoming connections
-    let server = l.handle().tcp_listen(&addr);
+    let server = TcpListener::bind(&addr, &pin);
 
-    let done = server.and_then(move |socket| {
-        // Once we've got the TCP listener, inform that we have it
-        println!("Listening on: {}", addr);
+    match server {
+        Ok(bound_socket) => {
+            let store_stream = stream::iter(repeat(Ok(Arc::new(Mutex::new(store)))));
+            let done = bound_socket.incoming().map_err(|_| ()).zip(store_stream).for_each(|((socket, _addr), store)| {
+                let pair = futures::lazy(|| Ok(socket.split()));
+                let foo = pair.and_then(|(read_half, write_half)| {
+                    let stream = SocketStream::new(read_half);
+                    let crlf = CarriageReturnLineFeedDelimitedStream::new(Box::new(stream));
+                    let memcached = MemcachedProtcolStream::new(Box::new(crlf));
+                    let handler = MemcachedHandlerStream::new(store, memcached);
+                    let output = CopyStreamToWrite::new(handler, write_half);
+                    output.for_each(|_| Ok(()))
+                });
 
-        socket.incoming().for_each(move |(socket, _addr)| {
-            let stream = SocketStream::new(socket);
-            let crlf = CarriageReturnLineFeedDelimitedStream::new(Box::new(stream));
-            let memcached = MemcachedProtcolStream::new(Box::new(crlf));
-            let msg = memcached.for_each(|message| {
-                println!("{:?}", message);
+                pin.spawn(foo.map(|_| ()).map_err(|e| {
+                    println!("Done here!");
+                    println!("{:?}", e);
+                    ()
+                }));
                 Ok(())
             });
 
-            pin.spawn(msg.map(|_| ()).map_err(|e|{
-                println!("error: {}", e);
-                ()
-            }));
-            Ok(())
-        })
-    });
-    l.run(done).unwrap();
+            l.run(done).unwrap();
+        }
+        Err(e) => {
+            println!("binding failed: {}", e);
+            return;
+        },
+    }
 }

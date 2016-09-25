@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
+use std::str::{self, FromStr};
 use std::mem;
 
 use memcached::types::*;
@@ -41,10 +41,15 @@ fn parse_header_part<T>(part: &[u8]) -> Result<T, MemcachedParseError> where T: 
 }
 
 fn parse_memcached_header(head: &Vec<u8>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
-    let parts: Vec<&[u8]> = head.split(|&byte| byte == b' ').collect();
+    let mut parts: Vec<&[u8]> = head[0..head.len()-2].split(|&byte| byte == b' ').collect();
+    println!("{:?}", parts);
+    let debug_parts: Vec<_> = parts.iter().map(|p| str::from_utf8(p)).collect();
+    println!("{:?}", debug_parts);
+    println!("{:?}", parts.len());
+    if parts[parts.len()-1] == b"" {
+        parts.pop();
+    }
     if parts.len() == 5 {
-        println!("{:?} {:?}", parts[0], b"set");
-        println!("{:?} {:?}", parts[0], b"get");
         let command = match parts[0] {
             b"set" => MemcachedCommandName::Set,
             b"get" => MemcachedCommandName::Get,
@@ -53,8 +58,7 @@ fn parse_memcached_header(head: &Vec<u8>) -> Result<MemcachedFrameHeader, Memcac
         let key = parts[1].to_vec();
         let flags = try!(parse_header_part(parts[2]));
         let exptime = try!(parse_header_part(parts[3]));
-        println!("{:?}", parts[4]);
-        let byte_count = try!(parse_header_part(&parts[4][0..parts[4].len()-2]));
+        let byte_count = try!(parse_header_part(&parts[4]));
 
         Ok(MemcachedFrameHeader {
             command_name: command,
