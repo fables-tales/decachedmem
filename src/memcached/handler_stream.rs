@@ -6,14 +6,14 @@ use memcached::types::*;
 use std::io;
 use std::sync::{Arc, Mutex};
 
-pub struct MemcachedHandlerStream {
-    protocol_stream: MemcachedProtcolStream,
+pub struct MemcachedHandlerStream<T: Stream<Item=Vec<u8>, Error=io::Error>> {
+    protocol_stream: MemcachedProtcolStream<T>,
     store: Arc<Mutex<Store>>,
     bytes: Vec<u8>,
 }
 
-impl MemcachedHandlerStream {
-    pub fn new(store: Arc<Mutex<Store>>, protocol_stream: MemcachedProtcolStream) -> MemcachedHandlerStream {
+impl <T: Stream<Item=Vec<u8>, Error=io::Error>> MemcachedHandlerStream<T> {
+    pub fn new(store: Arc<Mutex<Store>>, protocol_stream: MemcachedProtcolStream<T>) -> MemcachedHandlerStream<T> {
         MemcachedHandlerStream {
             store: store,
             protocol_stream: protocol_stream,
@@ -27,7 +27,7 @@ impl MemcachedHandlerStream {
     }
 }
 
-impl Stream for MemcachedHandlerStream {
+impl <T: Stream<Item=Vec<u8>, Error=io::Error>> Stream for MemcachedHandlerStream<T> {
     type Item=Vec<u8>;
     type Error=io::Error;
 
