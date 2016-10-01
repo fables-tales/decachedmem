@@ -26,7 +26,8 @@ use crlf_delimited_stream::CarriageReturnLineFeedDelimitedStream;
 use memcached::stream::MemcachedProtcolStream;
 use memcached::handler_stream::MemcachedHandlerStream;
 use memcached::store::Store;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::sync::Mutex;
 use copy_stream_to_write::CopyStreamToWrite;
 use unpack::Unpack;
 
@@ -46,7 +47,7 @@ fn main() {
 
     match server {
         Ok(bound_socket) => {
-            let store_stream = stream::iter(repeat(Ok(Arc::new(Mutex::new(store)))));
+            let store_stream = stream::iter(repeat(Ok(Rc::new(Mutex::new(store)))));
             let done = bound_socket.incoming()
                 .map_err(|_| ())
                 .zip(store_stream)

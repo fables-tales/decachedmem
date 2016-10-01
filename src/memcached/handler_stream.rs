@@ -4,15 +4,16 @@ use memcached::stream::MemcachedProtcolStream;
 use memcached::store::Store;
 use memcached::types::*;
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
+use std::rc::Rc;
 
 pub struct MemcachedHandlerStream<T: Stream<Item = Vec<u8>, Error = io::Error>> {
     protocol_stream: MemcachedProtcolStream<T>,
-    store: Arc<Mutex<Store>>,
+    store: Rc<Mutex<Store>>,
 }
 
 impl<T: Stream<Item = Vec<u8>, Error = io::Error>> MemcachedHandlerStream<T> {
-    pub fn new(store: Arc<Mutex<Store>>,
+    pub fn new(store: Rc<Mutex<Store>>,
                protocol_stream: MemcachedProtcolStream<T>)
                -> MemcachedHandlerStream<T> {
         MemcachedHandlerStream {
