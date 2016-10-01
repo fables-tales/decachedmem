@@ -45,7 +45,7 @@ fn parse_header_part<T>(part: &[u8]) -> Result<T, MemcachedParseError>
 }
 
 fn parse_memcached_header(head: &Vec<u8>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
-    let mut parts: Vec<&[u8]> =
+    let parts: Vec<&[u8]> =
         head[0..head.len() - 2].split(|&byte| byte == b' ').filter(|&part| part != b"").collect();
     match parts.len() {
         5 => parse_write(parts),

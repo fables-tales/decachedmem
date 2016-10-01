@@ -1,5 +1,5 @@
 use futures::stream::Stream;
-use futures::{Future, Poll, Async};
+use futures::{Poll, Async};
 
 pub struct Unpack<I, T: Stream<Item = Vec<I>>> {
     buffer: Vec<I>,

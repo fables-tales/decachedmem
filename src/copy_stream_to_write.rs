@@ -1,5 +1,5 @@
 use futures::stream::Stream;
-use futures::{Future, Poll, Async};
+use futures::{Poll, Async};
 use std::io::{self, Write};
 
 pub struct CopyStreamToWrite<S: Stream<Item = u8, Error = io::Error>, W: Write> {
@@ -23,7 +23,7 @@ impl<S: Stream<Item = u8, Error = io::Error>, W: Write> Stream for CopyStreamToW
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let poll = try_nb!(self.stream.poll());
         let result = match poll {
-            Async::Ready(Some(mut x)) => {
+            Async::Ready(Some(x)) => {
                 try_nb!(self.write.write(&[x]));
                 Async::Ready(Some(()))
             }

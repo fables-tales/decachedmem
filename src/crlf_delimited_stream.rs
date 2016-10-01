@@ -1,6 +1,5 @@
 use std::{io, mem};
 use futures::stream::Stream;
-use std::str;
 use futures::{Poll, Async};
 
 

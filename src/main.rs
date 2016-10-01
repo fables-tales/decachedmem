@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 #[macro_use]
 extern crate tokio_core;
 extern crate futures;
@@ -5,12 +7,11 @@ extern crate env_logger;
 
 use std::env;
 use std::net::SocketAddr;
-use std::io::{self, Write};
 use std::iter::repeat;
 
-use futures::{Future, AndThen};
-use futures::stream::{self, Stream, ForEach};
-use tokio_core::io::{write_all, WriteAll, WriteHalf, Io};
+use futures::Future;
+use futures::stream::{self, Stream};
+use tokio_core::io::Io;
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpListener;
 
@@ -25,7 +26,6 @@ use crlf_delimited_stream::CarriageReturnLineFeedDelimitedStream;
 use memcached::stream::MemcachedProtcolStream;
 use memcached::handler_stream::MemcachedHandlerStream;
 use memcached::store::Store;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use copy_stream_to_write::CopyStreamToWrite;
 use unpack::Unpack;

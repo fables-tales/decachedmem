@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 pub struct MemcachedHandlerStream<T: Stream<Item = Vec<u8>, Error = io::Error>> {
     protocol_stream: MemcachedProtcolStream<T>,
     store: Arc<Mutex<Store>>,
-    bytes: Vec<u8>,
 }
 
 impl<T: Stream<Item = Vec<u8>, Error = io::Error>> MemcachedHandlerStream<T> {
@@ -19,13 +18,7 @@ impl<T: Stream<Item = Vec<u8>, Error = io::Error>> MemcachedHandlerStream<T> {
         MemcachedHandlerStream {
             store: store,
             protocol_stream: protocol_stream,
-            bytes: Vec::new(),
         }
-    }
-
-    fn emit_bytes(&mut self) -> Poll<Option<u8>, io::Error> {
-        let byte = self.bytes.remove(0);
-        Ok(Async::Ready(Some(byte)))
     }
 }
 
