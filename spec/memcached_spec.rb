@@ -11,10 +11,13 @@ RSpec.describe "decachedmem" do
 
   it "doesn't choke when setting the key many times" do
     expect {
-      p "iter start"
       cache.set("foo", "37")
-      p "iter end"
       cache.set("foo", "37")
     }.not_to raise_error
+  end
+
+  it "can get a value it has set" do
+    cache.set("foo", "37")
+    expect(cache.get("foo")).to eq("37")
   end
 end
