@@ -41,35 +41,47 @@ fn parse_header_part<T>(part: &[u8]) -> Result<T, MemcachedParseError> where T: 
 }
 
 fn parse_memcached_header(head: &Vec<u8>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
-    let mut parts: Vec<&[u8]> = head[0..head.len()-2].split(|&byte| byte == b' ').collect();
-    println!("{:?}", parts);
-    let debug_parts: Vec<_> = parts.iter().map(|p| str::from_utf8(p)).collect();
-    println!("{:?}", debug_parts);
-    println!("{:?}", parts.len());
-    if parts[parts.len()-1] == b"" {
-        parts.pop();
+    let mut parts: Vec<&[u8]> = head[0..head.len()-2].split(|&byte| byte == b' ').filter(|&part| part != b"").collect();
+    match parts.len() {
+        5 => parse_write(parts),
+        2 => parse_read(parts),
+        _ => Err(MemcachedParseError { description: "wrong number of space separated parts in header".into() })
     }
-    if parts.len() == 5 {
-        let command = match parts[0] {
-            b"set" => MemcachedCommandName::Set,
-            b"get" => MemcachedCommandName::Get,
-            _ => return Err(MemcachedParseError::new("invalid memcached command sent".into())),
-        };
-        let key = parts[1].to_vec();
-        let flags = try!(parse_header_part(parts[2]));
-        let exptime = try!(parse_header_part(parts[3]));
-        let byte_count = try!(parse_header_part(&parts[4]));
+}
 
-        Ok(MemcachedFrameHeader {
-            command_name: command,
-            key: key,
-            flags: flags,
-            exptime: exptime,
-            byte_count: byte_count,
-        })
-    } else {
-        Err(MemcachedParseError{ description: "invalid memcached frame passed to header".into()})
-    }
+fn parse_write(parts: Vec<&[u8]>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
+    let command = match parts[0] {
+        b"set" => MemcachedCommandName::Set,
+        _ => return Err(MemcachedParseError::new(format!("invalid memcached write command name: {:?}", parts[0]).into())),
+    };
+    let key = parts[1].to_vec();
+    let flags = try!(parse_header_part(parts[2]));
+    let exptime = try!(parse_header_part(parts[3]));
+    let byte_count = try!(parse_header_part(&parts[4]));
+
+    Ok(MemcachedFrameHeader {
+        command_name: command,
+        key: key,
+        flags: flags,
+        exptime: exptime,
+        byte_count: byte_count,
+    })
+}
+
+fn parse_read(parts: Vec<&[u8]>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
+    let command = match parts[0] {
+        b"get" => MemcachedCommandName::Get,
+        _ => return Err(MemcachedParseError::new(format!("invalid memcached read command name: {:?}", parts[0]).into())),
+    };
+    let key = parts[1].to_vec();
+
+    Ok(MemcachedFrameHeader {
+        command_name: command,
+        key: key,
+        flags: 0,
+        exptime: 0,
+        byte_count: 0,
+    })
 }
 
 enum MemcachedParseState {
