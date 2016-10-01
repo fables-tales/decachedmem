@@ -3,15 +3,14 @@ use futures::stream::Stream;
 use std::str;
 use futures::{Poll, Async};
 
-pub type BoxedReadStream = Box<Stream<Item=u8, Error=io::Error>>;
 
-pub struct CarriageReturnLineFeedDelimitedStream {
-    stream: BoxedReadStream,
+pub struct CarriageReturnLineFeedDelimitedStream<T: Stream<Item=u8, Error=io::Error>> {
+    stream: T,
     build: Vec<u8>,
 }
 
-impl CarriageReturnLineFeedDelimitedStream {
-    pub fn new(stream: BoxedReadStream) -> CarriageReturnLineFeedDelimitedStream {
+impl <T: Stream<Item=u8, Error=io::Error>> CarriageReturnLineFeedDelimitedStream<T> {
+    pub fn new(stream: T) -> CarriageReturnLineFeedDelimitedStream<T> {
         CarriageReturnLineFeedDelimitedStream {
             stream: stream,
             build: vec!(),
@@ -19,8 +18,8 @@ impl CarriageReturnLineFeedDelimitedStream {
     }
 }
 
-impl Stream for CarriageReturnLineFeedDelimitedStream {
-    type Item=Box<Vec<u8>>;
+impl <T: Stream<Item=u8, Error=io::Error>> Stream for CarriageReturnLineFeedDelimitedStream<T> {
+    type Item=Vec<u8>;
     type Error=io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -30,10 +29,9 @@ impl Stream for CarriageReturnLineFeedDelimitedStream {
                 Async::NotReady | Async::Ready(None) => return Ok(Async::NotReady),
             }
         }
-        let mut result = Vec::new();
-        mem::swap(&mut result, &mut self.build);
-        println!("{:?}", str::from_utf8(result.as_slice()).unwrap());
-        Ok(Async::Ready(Some(Box::new(result))))
+        let mut complete_frame = Vec::new();
+        mem::swap(&mut complete_frame, &mut self.build);
+        Ok(Async::Ready(Some(complete_frame)))
     }
 }
 

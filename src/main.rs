@@ -49,7 +49,7 @@ fn main() {
                 let pair = futures::lazy(|| Ok(socket.split()));
                 let foo = pair.and_then(|(read_half, write_half)| {
                     let stream = SocketStream::new(read_half);
-                    let crlf = CarriageReturnLineFeedDelimitedStream::new(Box::new(stream));
+                    let crlf = CarriageReturnLineFeedDelimitedStream::new(stream);
                     let memcached = MemcachedProtcolStream::new(Box::new(crlf));
                     let handler = MemcachedHandlerStream::new(store, memcached);
                     let output = CopyStreamToWrite::new(handler, write_half);

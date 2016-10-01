@@ -12,12 +12,12 @@ fn other_io_error<T>(error: T) -> io::Error where T: Error + Sized {
 
 
 pub struct MemcachedProtcolStream {
-    stream: Box<Stream<Item=Box<Vec<u8>>, Error=io::Error>>,
+    stream: Box<Stream<Item=Vec<u8>, Error=io::Error>>,
     parser: MemcachedParseStateMachine,
 }
 
 impl MemcachedProtcolStream {
-    pub fn new(stream: Box<Stream<Item=Box<Vec<u8>>, Error=io::Error>>) -> MemcachedProtcolStream {
+    pub fn new(stream: Box<Stream<Item=Vec<u8>, Error=io::Error>>) -> MemcachedProtcolStream {
         MemcachedProtcolStream {
             stream: stream,
             parser: MemcachedParseStateMachine::new(),
