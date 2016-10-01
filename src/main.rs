@@ -18,6 +18,7 @@ mod socket_stream;
 mod crlf_delimited_stream;
 mod memcached;
 mod copy_stream_to_write;
+mod unpack;
 
 use socket_stream::SocketStream;
 use crlf_delimited_stream::CarriageReturnLineFeedDelimitedStream;
@@ -27,6 +28,7 @@ use memcached::store::Store;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use copy_stream_to_write::CopyStreamToWrite;
+use unpack::Unpack;
 
 fn main() {
     env_logger::init().unwrap();
@@ -50,9 +52,10 @@ fn main() {
                 let foo = pair.and_then(|(read_half, write_half)| {
                     let stream = SocketStream::new(read_half);
                     let crlf = CarriageReturnLineFeedDelimitedStream::new(stream);
-                    let memcached = MemcachedProtcolStream::new(Box::new(crlf));
+                    let memcached = MemcachedProtcolStream::new(crlf);
                     let handler = MemcachedHandlerStream::new(store, memcached);
-                    let output = CopyStreamToWrite::new(handler, write_half);
+                    let unpack = Unpack::new(handler);
+                    let output = CopyStreamToWrite::new(unpack, write_half);
                     output.for_each(|_| Ok(()))
                 });
 

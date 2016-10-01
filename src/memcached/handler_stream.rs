@@ -35,7 +35,6 @@ impl <T: Stream<Item=Vec<u8>, Error=io::Error>> Stream for MemcachedHandlerStrea
         let poll = try!(self.protocol_stream.poll());
         let result = match poll {
             Async::Ready(Some(message)) => {
-                println!("{:?}", message);
                 let mut store = self.store.lock().unwrap();
                 Async::Ready(Some(handle_message(&mut store, message)))
             },
