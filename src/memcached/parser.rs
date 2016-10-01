@@ -7,17 +7,17 @@ use memcached::types::*;
 
 #[derive(Debug)]
 pub struct MemcachedParseError {
-    description: String
+    description: String,
 }
 
 impl MemcachedParseError {
     fn new(description: String) -> MemcachedParseError {
-        MemcachedParseError {
-            description: description
-        }
+        MemcachedParseError { description: description }
     }
 
-    fn from_err<T>(e: T) -> MemcachedParseError where T: Error + Sized {
+    fn from_err<T>(e: T) -> MemcachedParseError
+        where T: Error + Sized
+    {
         Self::new(e.description().into())
     }
 }
@@ -34,25 +34,39 @@ impl Error for MemcachedParseError {
     }
 }
 
-fn parse_header_part<T>(part: &[u8]) -> Result<T, MemcachedParseError> where T: FromStr, T::Err: Error + Sized {
-    let string = try!(String::from_utf8(part.to_vec()).map_err(|e| MemcachedParseError::from_err(e)));
+fn parse_header_part<T>(part: &[u8]) -> Result<T, MemcachedParseError>
+    where T: FromStr,
+          T::Err: Error + Sized
+{
+    let string = try!(String::from_utf8(part.to_vec())
+        .map_err(|e| MemcachedParseError::from_err(e)));
     let parsed = try!(string.parse().map_err(|e| MemcachedParseError::from_err(e)));
     Ok(parsed)
 }
 
 fn parse_memcached_header(head: &Vec<u8>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
-    let mut parts: Vec<&[u8]> = head[0..head.len()-2].split(|&byte| byte == b' ').filter(|&part| part != b"").collect();
+    let mut parts: Vec<&[u8]> =
+        head[0..head.len() - 2].split(|&byte| byte == b' ').filter(|&part| part != b"").collect();
     match parts.len() {
         5 => parse_write(parts),
         2 => parse_read(parts),
-        _ => Err(MemcachedParseError { description: "wrong number of space separated parts in header".into() })
+        _ => {
+            Err(MemcachedParseError {
+                description: "wrong number of space separated parts in header".into(),
+            })
+        }
     }
 }
 
 fn parse_write(parts: Vec<&[u8]>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
     let command = match parts[0] {
         b"set" => MemcachedCommandName::Set,
-        _ => return Err(MemcachedParseError::new(format!("invalid memcached write command name: {:?}", parts[0]).into())),
+        _ => {
+            return Err(MemcachedParseError::new(format!("invalid memcached write command name: \
+                                                         {:?}",
+                                                        parts[0])
+                .into()))
+        }
     };
     let key = parts[1].to_vec();
     let flags = try!(parse_header_part(parts[2]));
@@ -71,7 +85,12 @@ fn parse_write(parts: Vec<&[u8]>) -> Result<MemcachedFrameHeader, MemcachedParse
 fn parse_read(parts: Vec<&[u8]>) -> Result<MemcachedFrameHeader, MemcachedParseError> {
     let command = match parts[0] {
         b"get" => MemcachedCommandName::Get,
-        _ => return Err(MemcachedParseError::new(format!("invalid memcached read command name: {:?}", parts[0]).into())),
+        _ => {
+            return Err(MemcachedParseError::new(format!("invalid memcached read command name: \
+                                                         {:?}",
+                                                        parts[0])
+                .into()))
+        }
     };
     let key = parts[1].to_vec();
 
@@ -100,22 +119,28 @@ impl MemcachedParseStateMachine {
     pub fn new() -> MemcachedParseStateMachine {
         MemcachedParseStateMachine {
             state: MemcachedParseState::NewHeader,
-            buffer: vec!(),
+            buffer: vec![],
             partial_header: None,
         }
     }
 
     // does not deal with splitting by CRLF, only pass in byte sequences that are already CRLF
     // delimited
-    pub fn add_bytes(&mut self, bytes: &Vec<u8>) -> Result<Option<MemcachedFrame>, MemcachedParseError> {
+    pub fn add_bytes(&mut self,
+                     bytes: &Vec<u8>)
+                     -> Result<Option<MemcachedFrame>, MemcachedParseError> {
         match self.state {
-            MemcachedParseState::ErrorState => Err(MemcachedParseError::new("In error state from previous call".into())),
+            MemcachedParseState::ErrorState => {
+                Err(MemcachedParseError::new("In error state from previous call".into()))
+            }
             MemcachedParseState::NewHeader => self.parse_header(bytes),
             MemcachedParseState::AccumulatingSet => self.accumulate(bytes),
         }
     }
 
-    fn parse_header(&mut self, bytes: &Vec<u8>) -> Result<Option<MemcachedFrame>, MemcachedParseError> {
+    fn parse_header(&mut self,
+                    bytes: &Vec<u8>)
+                    -> Result<Option<MemcachedFrame>, MemcachedParseError> {
         let header = parse_memcached_header(bytes);
         match header {
             Ok(header) => Ok(self.transition_for(header)),
@@ -126,7 +151,9 @@ impl MemcachedParseStateMachine {
         }
     }
 
-    fn accumulate(&mut self, bytes: &Vec<u8>) -> Result<Option<MemcachedFrame>, MemcachedParseError> {
+    fn accumulate(&mut self,
+                  bytes: &Vec<u8>)
+                  -> Result<Option<MemcachedFrame>, MemcachedParseError> {
         self.buffer.extend_from_slice(bytes.as_slice());
 
         if self.buffer.len() >= self.partial_header.as_mut().unwrap().byte_count {
@@ -141,7 +168,7 @@ impl MemcachedParseStateMachine {
     }
 
     fn produce_frame_and_reset(&mut self) -> MemcachedFrame {
-        let mut new_buffer = vec!();
+        let mut new_buffer = vec![];
         mem::swap(&mut new_buffer, &mut self.buffer);
 
         let mut new_header = None;
@@ -163,4 +190,3 @@ impl MemcachedParseStateMachine {
         }
     }
 }
-

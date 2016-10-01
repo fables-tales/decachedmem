@@ -3,14 +3,12 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Store {
-    kv: HashMap<MemcachedKey, MemcachedValue>
+    kv: HashMap<MemcachedKey, MemcachedValue>,
 }
 
 impl Store {
     pub fn new() -> Store {
-        Store {
-            kv: HashMap::new(),
-        }
+        Store { kv: HashMap::new() }
     }
 
     pub fn set(&mut self, key: &MemcachedKey, value: MemcachedValue) {

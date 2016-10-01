@@ -47,31 +47,34 @@ fn main() {
     match server {
         Ok(bound_socket) => {
             let store_stream = stream::iter(repeat(Ok(Arc::new(Mutex::new(store)))));
-            let done = bound_socket.incoming().map_err(|_| ()).zip(store_stream).for_each(|((socket, _addr), store)| {
-                let pair = futures::lazy(|| Ok(socket.split()));
-                let foo = pair.and_then(|(read_half, write_half)| {
-                    let stream = SocketStream::new(read_half);
-                    let crlf = CarriageReturnLineFeedDelimitedStream::new(stream);
-                    let memcached = MemcachedProtcolStream::new(crlf);
-                    let handler = MemcachedHandlerStream::new(store, memcached);
-                    let unpack = Unpack::new(handler);
-                    let output = CopyStreamToWrite::new(unpack, write_half);
-                    output.for_each(|_| Ok(()))
-                });
+            let done = bound_socket.incoming()
+                .map_err(|_| ())
+                .zip(store_stream)
+                .for_each(|((socket, _addr), store)| {
+                    let pair = futures::lazy(|| Ok(socket.split()));
+                    let foo = pair.and_then(|(read_half, write_half)| {
+                        let stream = SocketStream::new(read_half);
+                        let crlf = CarriageReturnLineFeedDelimitedStream::new(stream);
+                        let memcached = MemcachedProtcolStream::new(crlf);
+                        let handler = MemcachedHandlerStream::new(store, memcached);
+                        let unpack = Unpack::new(handler);
+                        let output = CopyStreamToWrite::new(unpack, write_half);
+                        output.for_each(|_| Ok(()))
+                    });
 
-                pin.spawn(foo.map(|_| ()).map_err(|e| {
-                    println!("Done here!");
-                    println!("{:?}", e);
-                    ()
-                }));
-                Ok(())
-            });
+                    pin.spawn(foo.map(|_| ()).map_err(|e| {
+                        println!("Done here!");
+                        println!("{:?}", e);
+                        ()
+                    }));
+                    Ok(())
+                });
 
             l.run(done).unwrap();
         }
         Err(e) => {
             println!("binding failed: {}", e);
             return;
-        },
+        }
     }
 }

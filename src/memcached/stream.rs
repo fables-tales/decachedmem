@@ -6,17 +6,19 @@ use std::error::Error;
 use memcached::parser::MemcachedParseStateMachine;
 use memcached::types::*;
 
-fn other_io_error<T>(error: T) -> io::Error where T: Error + Sized {
+fn other_io_error<T>(error: T) -> io::Error
+    where T: Error + Sized
+{
     io::Error::new(io::ErrorKind::Other, error.description())
 }
 
 
-pub struct MemcachedProtcolStream<T: Stream<Item=Vec<u8>, Error=io::Error>> {
+pub struct MemcachedProtcolStream<T: Stream<Item = Vec<u8>, Error = io::Error>> {
     stream: T,
     parser: MemcachedParseStateMachine,
 }
 
-impl <T: Stream<Item=Vec<u8>, Error=io::Error>> MemcachedProtcolStream<T> {
+impl<T: Stream<Item = Vec<u8>, Error = io::Error>> MemcachedProtcolStream<T> {
     pub fn new(stream: T) -> MemcachedProtcolStream<T> {
         MemcachedProtcolStream {
             stream: stream,
@@ -25,9 +27,9 @@ impl <T: Stream<Item=Vec<u8>, Error=io::Error>> MemcachedProtcolStream<T> {
     }
 }
 
-impl <T: Stream<Item=Vec<u8>, Error=io::Error>> Stream for MemcachedProtcolStream<T> {
-    type Item=MemcachedFrame;
-    type Error=io::Error;
+impl<T: Stream<Item = Vec<u8>, Error = io::Error>> Stream for MemcachedProtcolStream<T> {
+    type Item = MemcachedFrame;
+    type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
@@ -38,15 +40,12 @@ impl <T: Stream<Item=Vec<u8>, Error=io::Error>> Stream for MemcachedProtcolStrea
 
                     match frame {
                         Some(x) => return Ok(Async::Ready(Some(x))),
-                        None => {},
+                        None => {}
                     }
-                },
-                Async::NotReady | Async::Ready(None) => {
-                    return Ok(Async::NotReady)
-                },
+                }
+                Async::NotReady |
+                Async::Ready(None) => return Ok(Async::NotReady),
             };
         }
     }
 }
-
-

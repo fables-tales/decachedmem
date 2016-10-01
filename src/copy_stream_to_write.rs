@@ -2,12 +2,12 @@ use futures::stream::Stream;
 use futures::{Future, Poll, Async};
 use std::io::{self, Write};
 
-pub struct CopyStreamToWrite<S: Stream<Item=u8, Error=io::Error>, W: Write> {
+pub struct CopyStreamToWrite<S: Stream<Item = u8, Error = io::Error>, W: Write> {
     stream: S,
     write: W,
 }
 
-impl <S: Stream<Item=u8, Error=io::Error>, W: Write> CopyStreamToWrite<S, W> {
+impl<S: Stream<Item = u8, Error = io::Error>, W: Write> CopyStreamToWrite<S, W> {
     pub fn new(stream: S, write: W) -> CopyStreamToWrite<S, W> {
         CopyStreamToWrite {
             stream: stream,
@@ -16,7 +16,7 @@ impl <S: Stream<Item=u8, Error=io::Error>, W: Write> CopyStreamToWrite<S, W> {
     }
 }
 
-impl <S: Stream<Item=u8, Error=io::Error>, W: Write> Stream for CopyStreamToWrite<S, W> {
+impl<S: Stream<Item = u8, Error = io::Error>, W: Write> Stream for CopyStreamToWrite<S, W> {
     type Item = ();
     type Error = io::Error;
 
@@ -26,9 +26,9 @@ impl <S: Stream<Item=u8, Error=io::Error>, W: Write> Stream for CopyStreamToWrit
             Async::Ready(Some(mut x)) => {
                 try_nb!(self.write.write(&[x]));
                 Async::Ready(Some(()))
-            },
-            Async::Ready(None) => { Async::Ready(None) },
-            Async::NotReady => { Async::NotReady }
+            }
+            Async::Ready(None) => Async::Ready(None),
+            Async::NotReady => Async::NotReady,
         };
         Ok(result)
     }

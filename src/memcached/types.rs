@@ -6,7 +6,7 @@ pub type MemcachedExpTime = i32;
 #[derive(Debug)]
 pub enum MemcachedCommandName {
     Get,
-    Set
+    Set,
 }
 
 #[derive(Debug)]
@@ -22,10 +22,9 @@ impl MemcachedFrameHeader {
     pub fn as_dataless_frame(self) -> MemcachedFrame {
         MemcachedFrame {
             header: self,
-            bytes: vec!(),
+            bytes: vec![],
         }
     }
-
 }
 
 #[derive(Debug)]

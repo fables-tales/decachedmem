@@ -1,21 +1,21 @@
 use futures::stream::Stream;
 use futures::{Future, Poll, Async};
 
-pub struct Unpack<I, T: Stream<Item=Vec<I>>> {
+pub struct Unpack<I, T: Stream<Item = Vec<I>>> {
     buffer: Vec<I>,
     stream: T,
 }
 
-impl <I, T: Stream<Item=Vec<I>>> Unpack<I, T> {
+impl<I, T: Stream<Item = Vec<I>>> Unpack<I, T> {
     pub fn new(stream: T) -> Self {
         Unpack {
-            buffer: vec!(),
-            stream: stream
+            buffer: vec![],
+            stream: stream,
         }
     }
 }
 
-impl <I, T: Stream<Item=Vec<I>>> Stream for Unpack<I, T> {
+impl<I, T: Stream<Item = Vec<I>>> Stream for Unpack<I, T> {
     type Item = I;
     type Error = T::Error;
 
@@ -25,9 +25,9 @@ impl <I, T: Stream<Item=Vec<I>>> Stream for Unpack<I, T> {
             match poll {
                 Async::Ready(Some(mut x)) => {
                     self.buffer.append(&mut x);
-                },
-                Async::Ready(None) => { return Ok(Async::Ready(None)) },
-                Async::NotReady => { return Ok(Async::NotReady) }
+                }
+                Async::Ready(None) => return Ok(Async::Ready(None)),
+                Async::NotReady => return Ok(Async::NotReady),
             }
         }
 
