@@ -4,16 +4,16 @@ use memcached::stream::MemcachedProtcolStream;
 use memcached::store::Store;
 use memcached::types::*;
 use std::io;
-use std::sync::Mutex;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct MemcachedHandlerStream<T: Stream<Item = Vec<u8>, Error = io::Error>> {
     protocol_stream: MemcachedProtcolStream<T>,
-    store: Rc<Mutex<Store>>,
+    store: Rc<RefCell<Store>>,
 }
 
 impl<T: Stream<Item = Vec<u8>, Error = io::Error>> MemcachedHandlerStream<T> {
-    pub fn new(store: Rc<Mutex<Store>>,
+    pub fn new(store: Rc<RefCell<Store>>,
                protocol_stream: MemcachedProtcolStream<T>)
                -> MemcachedHandlerStream<T> {
         MemcachedHandlerStream {
@@ -31,7 +31,7 @@ impl<T: Stream<Item = Vec<u8>, Error = io::Error>> Stream for MemcachedHandlerSt
         let poll = try!(self.protocol_stream.poll());
         let result = match poll {
             Async::Ready(Some(message)) => {
-                let mut store = self.store.lock().unwrap();
+                let mut store = self.store.borrow_mut();
                 Async::Ready(Some(handle_message(&mut store, message)))
             }
             Async::Ready(None) => Async::Ready(None),
