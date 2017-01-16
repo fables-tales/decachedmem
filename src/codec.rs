@@ -2,7 +2,6 @@ use std::io;
 use std::mem;
 use std::str;
 use tokio_core::io::{Codec, EasyBuf};
-use tokio_proto::streaming::pipeline::Frame;
 use memcached;
 
 fn parse_bytes(expected_to_be_a_byte_count: &[u8]) -> Option<u64> {
@@ -11,6 +10,7 @@ fn parse_bytes(expected_to_be_a_byte_count: &[u8]) -> Option<u64> {
     byte_count
 }
 
+#[derive(PartialEq)]
 enum CodecState {
     AwaitingHeader,
     ReadingBody,
@@ -44,6 +44,8 @@ impl MemcachedCodec {
             // take the \r\n off
             buf.drain_to(1);
 
+            println!("{:?}", line.as_slice());
+
             let mut space_index = 0;
             let mut spaces_encountered = 0;
             let mut command = None;
@@ -56,10 +58,10 @@ impl MemcachedCodec {
                 if next_to_consider == b' ' || next_to_consider == b'\r' {
                     if spaces_encountered == 0 {
                         match part {
-                            b"GET" => {
+                            b"get" => {
                                 command = Some(memcached::Command::Get);
                             }
-                            b"SET" => {
+                            b"set" => {
                                 command = Some(memcached::Command::Set);
                             }
                             _ => {}
@@ -76,10 +78,18 @@ impl MemcachedCodec {
                 }
             }
 
+            println!("{:?} {:?}", command, key);
             match (command, key) {
                 // TODO: pass through spaces encountered here to validate it's the right number
                 // for the passed command
-                (Some(command), Some(key)) => self.consume_header(command, key, bytes_to_read),
+                (Some(command), Some(key)) => {
+                    let mut res = self.consume_header(command, key, bytes_to_read);
+                    if self.state == CodecState::ReadingBody {
+                        res = self.decode(buf);
+                    }
+
+                    res
+                }
                 _ => self.handle_error(),
             }
         } else {
@@ -94,6 +104,7 @@ impl MemcachedCodec {
                       -> io::Result<Option<memcached::Request>> {
         match command {
             memcached::Command::Get => {
+                println!("have get");
                 Ok(Some(memcached::Request::new(memcached::Command::Get, key)))
             }
             memcached::Command::Set => {
@@ -125,6 +136,7 @@ impl MemcachedCodec {
                     mem::swap(&mut partial, &mut self.partial);
                     let mut partial = partial.unwrap();
                     partial.set_body(body.as_slice().to_vec());
+                    self.bytes_to_read = None;
                     Ok(Some(partial))
                 } else {
                     Ok(None)
@@ -143,23 +155,29 @@ impl Codec for MemcachedCodec {
     type Out = memcached::Reply;
 
     fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
-        match self.state {
+        println!("-------------------");
+        println!("buf before {:?}", buf.as_slice());
+
+        let res = match self.state {
             CodecState::AwaitingHeader => self.read_header(buf),
             CodecState::ReadingBody => self.read_body(buf),
             CodecState::Error => self.handle_error(),
-        }
+        };
+        println!("buf after {:?}", buf.as_slice());
+        println!("-------------------");
+        res
     }
 
     fn encode(&mut self, msg: Self::Out, buf: &mut Vec<u8>) -> io::Result<()> {
         buf.extend_from_slice(&msg.serialize());
         buf.extend_from_slice(b"\r\n");
+        println!("sending: {:?}", buf.as_slice());
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use tokio_proto::streaming::pipeline::Frame;
     use tokio_core::io::{Codec, EasyBuf};
     use super::MemcachedCodec;
     use memcached;
@@ -167,7 +185,7 @@ mod tests {
     #[test]
     fn decode_get_works() {
         let mut codec = MemcachedCodec::new();
-        let mut buf = EasyBuf::from("GET foo\r\n".as_bytes().to_vec());
+        let mut buf = EasyBuf::from("get foo\r\n".as_bytes().to_vec());
 
         let result = codec.decode(&mut buf);
 
@@ -181,7 +199,7 @@ mod tests {
     #[test]
     fn decode_get_with_trailing_space_works() {
         let mut codec = MemcachedCodec::new();
-        let mut buf = EasyBuf::from("GET foo \r\n".as_bytes().to_vec());
+        let mut buf = EasyBuf::from("get foo \r\n".as_bytes().to_vec());
 
         let result = codec.decode(&mut buf);
 
@@ -195,7 +213,7 @@ mod tests {
     #[test]
     fn multiple_decode_works() {
         let mut codec = MemcachedCodec::new();
-        let mut buf = EasyBuf::from("GET foo\r\n".as_bytes().to_vec());
+        let mut buf = EasyBuf::from("get foo\r\n".as_bytes().to_vec());
 
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
@@ -203,7 +221,7 @@ mod tests {
                    memcached::Request::new(memcached::Command::Get,
                                            memcached::Key("foo".as_bytes().to_vec())));
 
-        let mut buf = EasyBuf::from("GET foo2\r\n".as_bytes().to_vec());
+        let mut buf = EasyBuf::from("get foo2\r\n".as_bytes().to_vec());
 
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
@@ -216,9 +234,8 @@ mod tests {
     #[test]
     fn set_works() {
         let mut codec = MemcachedCodec::new();
-        let mut buf = EasyBuf::from("SET foo flag 0 4\r\nabcd\r\n".as_bytes().to_vec());
+        let mut buf = EasyBuf::from("set foo flag 0 4\r\nabcd\r\n".as_bytes().to_vec());
 
-        codec.decode(&mut buf);
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
 
@@ -231,9 +248,8 @@ mod tests {
     #[test]
     fn set_then_get_works() {
         let mut codec = MemcachedCodec::new();
-        let mut buf = EasyBuf::from("SET foo flag 0 4\r\nabcd\r\nGET foo\r\n".as_bytes().to_vec());
+        let mut buf = EasyBuf::from("set foo flag 0 4\r\nabcd\r\nget foo\r\n".as_bytes().to_vec());
 
-        codec.decode(&mut buf);
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
         let mut expected = memcached::Request::new(memcached::Command::Set,

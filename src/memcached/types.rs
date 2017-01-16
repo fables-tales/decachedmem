@@ -1,4 +1,4 @@
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 pub struct Key(pub Vec<u8>);
 
 #[derive(PartialEq, Debug)]
@@ -7,17 +7,11 @@ pub enum Command {
     Set,
 }
 
-pub enum ReplyType {
-    Error,
-    Stored,
-    Value,
-}
-
 #[derive(PartialEq, Debug)]
 pub struct Request {
-    command: Command,
-    key: Key,
-    body: Option<Vec<u8>>,
+    pub command: Command,
+    pub key: Key,
+    pub body: Option<Vec<u8>>,
 }
 
 impl Request {
@@ -34,23 +28,25 @@ impl Request {
     }
 }
 
-pub struct Reply {
-    reply_type: ReplyType,
-    key: Option<Key>,
-    length: Option<u64>,
+pub enum Reply {
+    Stored,
+    Value(Key, Vec<u8>),
+    NotFound,
 }
 
 impl Reply {
     pub fn serialize(self) -> Vec<u8> {
-        match self.reply_type {
-            ReplyType::Error => b"ERROR"[..].to_vec(),
-            ReplyType::Stored => b"STORED"[..].to_vec(),
-            ReplyType::Value => {
+        match self {
+            Reply::Stored => b"STORED".to_vec(),
+            Reply::NotFound => b"NOT_FOUND".to_vec(),
+            Reply::Value(key, body) => {
                 let mut build = Vec::new();
                 build.extend_from_slice(b"VALUE ");
-                build.extend_from_slice(self.key.unwrap().0.as_slice());
+                build.extend_from_slice(key.0.as_slice());
                 build.extend_from_slice(b" 3 ");
-                build.extend_from_slice(self.length.unwrap().to_string().as_bytes());
+                build.extend_from_slice(body.len().to_string().as_bytes());
+                build.extend_from_slice(b"\r\n");
+                build.extend_from_slice(body.as_slice());
                 build
             }
         }

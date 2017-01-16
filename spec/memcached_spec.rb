@@ -1,4 +1,5 @@
 require "spec_helper"
+require "securerandom"
 require "memcached"
 
 RSpec.describe "decachedmem" do
@@ -8,6 +9,12 @@ RSpec.describe "decachedmem" do
     expect {
       cache.set("foo", "37")
     }.not_to raise_error
+  end
+
+  it "doesn't choke when getting a key" do
+    expect {
+      cache.get(SecureRandom.hex)
+    }.to raise_error(Memcached::NotFound)
   end
 
   it "doesn't choke when setting the key many times" do

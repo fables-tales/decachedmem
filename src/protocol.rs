@@ -5,7 +5,12 @@ use tokio_core::io::{Io, Framed};
 use codec::MemcachedCodec;
 use memcached;
 
-struct MemcachedProto{
+pub struct MemcachedProto{}
+
+impl MemcachedProto {
+    pub fn new() -> Self {
+        MemcachedProto{}
+    }
 }
 
 impl<T: Io + 'static> ServerProto<T> for MemcachedProto {
