@@ -7,3 +7,6 @@ authors = ["Sam Phippen <samphippen@googlemail.com>"]
 tokio-core = { git = "https://github.com/tokio-rs/tokio-core/" }
 futures = "0.1"
 env_logger = "0.3.4"
+
+[profile.release]
+lto = true
