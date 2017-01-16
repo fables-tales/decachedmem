@@ -7,9 +7,7 @@ pub struct Store {
 
 impl Store {
     pub fn new() -> Self {
-        Store {
-            values: HashMap::new(),
-        }
+        Store { values: HashMap::new() }
     }
     pub fn get(&self, key: &memcached::Key) -> Option<Vec<u8>> {
         self.values.get(key).map(|vec| vec.clone())

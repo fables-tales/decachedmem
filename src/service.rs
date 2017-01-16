@@ -10,9 +10,7 @@ pub struct MemcachedService {
 
 impl MemcachedService {
     pub fn new(store: Arc<Mutex<memcached::Store>>) -> Self {
-        MemcachedService {
-            store: store,
-        }
+        MemcachedService { store: store }
     }
 
     fn process_get(&self, key: memcached::Key) -> <MemcachedService as Service>::Response {
@@ -25,7 +23,10 @@ impl MemcachedService {
         }
     }
 
-    fn process_set(&self, key: memcached::Key, body: Vec<u8>) -> <MemcachedService as Service>::Response {
+    fn process_set(&self,
+                   key: memcached::Key,
+                   body: Vec<u8>)
+                   -> <MemcachedService as Service>::Response {
         let mut store = self.store.lock().unwrap();
         store.set(key, body);
         memcached::Reply::Stored
