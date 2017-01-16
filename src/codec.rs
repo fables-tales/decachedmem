@@ -24,7 +24,7 @@ pub struct MemcachedCodec {
 }
 
 impl MemcachedCodec {
-    fn new() -> Self {
+    pub fn new() -> Self {
         MemcachedCodec {
             state: CodecState::AwaitingHeader,
             bytes_to_read: None,

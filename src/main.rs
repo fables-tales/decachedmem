@@ -15,5 +15,6 @@ use futures::{future, Future, Stream, Sink, BoxFuture};
 
 mod memcached;
 mod codec;
+mod protocol;
 
 fn main() {}
