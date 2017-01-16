@@ -1,10 +1,9 @@
 use std::io;
+use std::mem;
 use std::str;
 use tokio_core::io::{Codec, EasyBuf};
 use tokio_proto::streaming::pipeline::Frame;
 use memcached;
-
-type InType = Frame<memcached::Request, EasyBuf, io::Error>;
 
 fn parse_bytes(expected_to_be_a_byte_count: &[u8]) -> Option<u64> {
     let byte_string = str::from_utf8(expected_to_be_a_byte_count).ok();
@@ -20,6 +19,7 @@ enum CodecState {
 
 pub struct MemcachedCodec {
     state: CodecState,
+    partial: Option<memcached::Request>,
     bytes_to_read: Option<u64>,
 }
 
@@ -28,15 +28,16 @@ impl MemcachedCodec {
         MemcachedCodec {
             state: CodecState::AwaitingHeader,
             bytes_to_read: None,
+            partial: None,
         }
     }
 
-    fn handle_error(&mut self) -> io::Result<Option<InType>> {
+    fn handle_error(&mut self) -> io::Result<Option<memcached::Request>> {
         self.state = CodecState::Error;
         Err(io::Error::new(io::ErrorKind::Other, "Codec is in error state"))
     }
 
-    fn read_header(&mut self, buf: &mut EasyBuf) -> io::Result<Option<InType>> {
+    fn read_header(&mut self, buf: &mut EasyBuf) -> io::Result<Option<memcached::Request>> {
         if let Some(i) = buf.as_slice().windows(2).position(|b| b == b"\r\n") {
             let line = buf.drain_to(i + 1);
 
@@ -90,24 +91,19 @@ impl MemcachedCodec {
                       command: memcached::Command,
                       key: memcached::Key,
                       bytes_to_read: Option<u64>)
-                      -> io::Result<Option<InType>> {
+                      -> io::Result<Option<memcached::Request>> {
         match command {
             memcached::Command::Get => {
-                Ok(Some(Frame::Message {
-                    message: memcached::Request::new(memcached::Command::Get, key),
-                    body: false,
-                }))
+                Ok(Some(memcached::Request::new(memcached::Command::Get, key)))
             }
             memcached::Command::Set => {
                 match bytes_to_read {
                     Some(count) => {
                         self.state = CodecState::ReadingBody;
                         self.bytes_to_read = Some(count);
+                        self.partial = Some(memcached::Request::new(memcached::Command::Set, key));
 
-                        Ok(Some(Frame::Message {
-                            message: memcached::Request::new(memcached::Command::Set, key),
-                            body: true,
-                        }))
+                        Ok(None)
                     }
                     None => {
                         Err(io::Error::new(io::ErrorKind::Other,
@@ -118,14 +114,18 @@ impl MemcachedCodec {
         }
     }
 
-    fn read_body(&mut self, buf: &mut EasyBuf) -> io::Result<Option<InType>> {
+    fn read_body(&mut self, buf: &mut EasyBuf) -> io::Result<Option<memcached::Request>> {
         match self.bytes_to_read {
             Some(count) => {
                 if buf.len() >= count as usize {
                     let body = buf.drain_to(count as usize);
                     buf.drain_to(2);
                     self.state = CodecState::AwaitingHeader;
-                    Ok(Some(Frame::Body { chunk: Some(body) }))
+                    let mut partial = None;
+                    mem::swap(&mut partial, &mut self.partial);
+                    let mut partial = partial.unwrap();
+                    partial.set_body(body.as_slice().to_vec());
+                    Ok(Some(partial))
                 } else {
                     Ok(None)
                 }
@@ -139,8 +139,8 @@ impl MemcachedCodec {
 }
 
 impl Codec for MemcachedCodec {
-    type In = InType;
-    type Out = Frame<memcached::Reply, Vec<u8>, io::Error>;
+    type In = memcached::Request;
+    type Out = memcached::Reply;
 
     fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
         match self.state {
@@ -151,26 +151,9 @@ impl Codec for MemcachedCodec {
     }
 
     fn encode(&mut self, msg: Self::Out, buf: &mut Vec<u8>) -> io::Result<()> {
-
-        match msg {
-            Frame::Message { message, body } => {
-                buf.extend_from_slice(&message.serialize());
-                buf.extend_from_slice(b"\r\n");
-                Ok(())
-            }
-            Frame::Body { chunk } => {
-                if let Some(chunk) = chunk {
-                    buf.extend_from_slice(chunk.as_slice());
-                    buf.extend_from_slice(b"\r\n");
-                }
-                Ok(())
-            }
-            Frame::Error { error } => {
-                // TODO: we could use this for memcached errors
-                // if we were 2 cool for skool
-                Err(error)
-            }
-        }
+        buf.extend_from_slice(&msg.serialize());
+        buf.extend_from_slice(b"\r\n");
+        Ok(())
     }
 }
 
@@ -189,17 +172,9 @@ mod tests {
         let result = codec.decode(&mut buf);
 
         let frame = result.unwrap().unwrap();
-
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Get,
-                                                   memcached::Key("foo".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        assert_eq!(frame,
+                   memcached::Request::new(memcached::Command::Get,
+                                           memcached::Key("foo".as_bytes().to_vec())));
 
     }
 
@@ -211,17 +186,9 @@ mod tests {
         let result = codec.decode(&mut buf);
 
         let frame = result.unwrap().unwrap();
-
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Get,
-                                                   memcached::Key("foo".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        assert_eq!(frame,
+                   memcached::Request::new(memcached::Command::Get,
+                                           memcached::Key("foo".as_bytes().to_vec())))
 
     }
 
@@ -232,33 +199,18 @@ mod tests {
 
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
-
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Get,
-                                                   memcached::Key("foo".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        assert_eq!(frame,
+                   memcached::Request::new(memcached::Command::Get,
+                                           memcached::Key("foo".as_bytes().to_vec())));
 
         let mut buf = EasyBuf::from("GET foo2\r\n".as_bytes().to_vec());
 
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
 
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Get,
-                                                   memcached::Key("foo2".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        assert_eq!(frame,
+                   memcached::Request::new(memcached::Command::Get,
+                                           memcached::Key("foo2".as_bytes().to_vec())));
     }
 
     #[test]
@@ -266,29 +218,14 @@ mod tests {
         let mut codec = MemcachedCodec::new();
         let mut buf = EasyBuf::from("SET foo flag 0 4\r\nabcd\r\n".as_bytes().to_vec());
 
+        codec.decode(&mut buf);
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
 
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Set,
-                                                   memcached::Key("foo".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
-
-        let result = codec.decode(&mut buf);
-        let frame = result.unwrap().unwrap();
-
-        match frame {
-            Frame::Body { chunk } => assert_eq!(chunk.unwrap().as_slice(), b"abcd"),
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        let mut expected = memcached::Request::new(memcached::Command::Set,
+                                           memcached::Key("foo".as_bytes().to_vec()));
+        expected.set_body(b"abcd"[..].to_vec());
+        assert_eq!(frame, expected);
     }
 
     #[test]
@@ -296,42 +233,19 @@ mod tests {
         let mut codec = MemcachedCodec::new();
         let mut buf = EasyBuf::from("SET foo flag 0 4\r\nabcd\r\nGET foo\r\n".as_bytes().to_vec());
 
+        codec.decode(&mut buf);
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
+        let mut expected = memcached::Request::new(memcached::Command::Set, memcached::Key("foo".as_bytes().to_vec()));
 
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Set,
-                                                   memcached::Key("foo".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        expected.set_body(b"abcd"[..].to_vec());
+
+        assert_eq!(frame, expected);
 
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
-
-        match frame {
-            Frame::Body { chunk } => assert_eq!(chunk.unwrap().as_slice(), b"abcd"),
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
-
-        let result = codec.decode(&mut buf);
-        let frame = result.unwrap().unwrap();
-
-        match frame {
-            Frame::Message { message, body } => {
-                assert_eq!(message,
-                           memcached::Request::new(memcached::Command::Get,
-                                                   memcached::Key("foo".as_bytes().to_vec())))
-            }
-            _ => {
-                panic!("didn't get a message back from a get");
-            }
-        }
+        assert_eq!(frame,
+                   memcached::Request::new(memcached::Command::Get,
+                                           memcached::Key("foo".as_bytes().to_vec())));
     }
 }

@@ -17,6 +17,7 @@ pub enum ReplyType {
 pub struct Request {
     command: Command,
     key: Key,
+    body: Option<Vec<u8>>,
 }
 
 impl Request {
@@ -24,7 +25,12 @@ impl Request {
         Request {
             command: command,
             key: key,
+            body: None,
         }
+    }
+
+    pub fn set_body(&mut self, body: Vec<u8>) {
+        self.body = Some(body);
     }
 }
 
