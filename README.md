@@ -12,7 +12,7 @@ manipulate the server.
 
 1. You need both Ruby and Rust development tools on your local machine
 2. Clone this repo
-3. Run `cargo build && bundle install`
+3. Run `cargo build --release && bundle install`
 4. In one terminal run `cargo run`
 5. In another terminal run `bundle exec rspec`
 
