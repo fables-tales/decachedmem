@@ -223,7 +223,7 @@ mod tests {
         let frame = result.unwrap().unwrap();
 
         let mut expected = memcached::Request::new(memcached::Command::Set,
-                                           memcached::Key("foo".as_bytes().to_vec()));
+                                                   memcached::Key("foo".as_bytes().to_vec()));
         expected.set_body(b"abcd"[..].to_vec());
         assert_eq!(frame, expected);
     }
@@ -236,7 +236,8 @@ mod tests {
         codec.decode(&mut buf);
         let result = codec.decode(&mut buf);
         let frame = result.unwrap().unwrap();
-        let mut expected = memcached::Request::new(memcached::Command::Set, memcached::Key("foo".as_bytes().to_vec()));
+        let mut expected = memcached::Request::new(memcached::Command::Set,
+                                                   memcached::Key("foo".as_bytes().to_vec()));
 
         expected.set_body(b"abcd"[..].to_vec());
 
