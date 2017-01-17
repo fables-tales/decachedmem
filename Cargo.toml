@@ -2,6 +2,7 @@
 name = "decachedmem"
 version = "0.1.0"
 authors = ["Sam Phippen <samphippen@googlemail.com>"]
+license = "MIT"
 
 [dependencies]
 futures = "0.1"
