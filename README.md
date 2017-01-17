@@ -12,11 +12,11 @@ manipulate the server.
 
 1. You need both Ruby and Rust development tools on your local machine
 2. Clone this repo
-3. Run `cargo build && bundle install`
-4. In one terminal run `cargo run`
+3. Run `cargo build --release && bundle install`
+4. In one terminal run `cargo run --release`
 5. In another terminal run `bundle exec rspec`
 
-When you run `cargo run` you're starting the memcached server bound to port
+When you run `cargo run --release` you're starting the memcached server bound to port
 `11211` (so you might get a conflict if you're running the real version of
 memcached in the background). Hypothetically, you can attach any basic memcached
 client to this server. As a note, the Ruby `dalli` gem doesn't work, because it
